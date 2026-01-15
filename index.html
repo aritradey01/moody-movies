@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Mood Recommender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="text-white">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 mb-2">
+                MovieMood
+            </h1>
+            <p class="text-lg md:text-xl text-gray-300">How are you feeling today?</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center gap-3 md:gap-4 mb-10" id="mood-selector">
+            <button data-mood="happy" class="mood-btn bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-3 px-6 rounded-full shadow-lg">
+                😄 Happy
+            </button>
+            <button data-mood="sad" class="mood-btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                😢 Sad
+            </button>
+            <button data-mood="thrilled" class="mood-btn bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                🤯 Thrilled
+            </button>
+            <button data-mood="romantic" class="mood-btn bg-pink-500 hover:bg-pink-400 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                ❤️ Romantic
+            </button>
+            <button data-mood="scared" class="mood-btn bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                👻 Scared
+            </button>
+            <button data-mood="thoughtful" class="mood-btn bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                🤔 Thoughtful
+            </button>
+        </nav>
+
+        <div id="loading-spinner" class="text-center hidden my-16">
+            <div class="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-purple-400" role="status">
+                <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+            </div>
+            <p class="mt-2 text-gray-400">Finding the perfect movies...</p>
+        </div>
+
+        <main id="movie-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+        </main>
+
+        <div id="message-area" class="text-center text-gray-500 mt-16">
+            <p class="text-2xl">Select a mood to see movie recommendations!</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const API_KEY = 'b318a71fb251201f88e38ca8150a9515';
+            
+            const BASE_URL = 'https://api.themoviedb.org/3';
+            const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+
+            const MOOD_GENRE_MAP = {
+                'happy': [35, 10751],
+                'sad': [18],
+                'thrilled': [28, 53, 12],
+                'romantic': [10749],
+                'scared': [27, 9648],
+                'thoughtful': [99, 878]
+            };
+
+            const moodSelector = document.getElementById('mood-selector');
+            const resultsContainer = document.getElementById('movie-results');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const messageArea = document.getElementById('message-area');
+
+            moodSelector.addEventListener('click', (event) => {
+                if (event.target.tagName === 'BUTTON') {
+                    const mood = event.target.dataset.mood;
+                    if (mood) {
+                        const genreIds = MOOD_GENRE_MAP[mood];
+                        fetchMovies(genreIds);
+                    }
+                }
+            });
+
+            async function fetchMovies(genreIds) {
+                if (API_KEY === 'YOUR_API_KEY_HERE' || !API_KEY) {
+                    showMessage('Please add your TMDB API key to the script file!', true);
+                    return;
+                }
+
+                showLoading(true);
+                resultsContainer.innerHTML = '';
+                showMessage('', false);
+
+                const genreQuery = genreIds.join(',');
+                
+                const url = `${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${genreQuery}&sort_by=popularity.desc&language=en-US&page=1`;
+
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    
+                    if (data.results && data.results.length > 0) {
+                        displayMovies(data.results);
+                    } else {
+                        showMessage('No movies found for this mood. Try another!', false);
+                    }
+
+                } catch (error) {
+                    console.error('Error fetching movies:', error);
+                    showMessage('Could not fetch movies. Check the console for details.', true);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            function displayMovies(movies) {
+                resultsContainer.innerHTML = '';
+
+                movies.forEach(movie => {
+                    const movieCard = document.createElement('div');
+                    movieCard.className = 'movie-card rounded-lg overflow-hidden shadow-lg';
+
+                    const posterPath = movie.poster_path 
+                        ? `${IMAGE_BASE_URL}${movie.poster_path}`
+                        : `https://placehold.co/500x750/313b4c/FFF?text=${movie.title.replace(/\s/g, '+')}`;
+                    
+                    const overview = movie.overview.length > 100 
+                        ? movie.overview.substring(0, 100) + '...' 
+                        : movie.overview;
+
+                    const rating = movie.vote_average.toFixed(1);
+
+                    movieCard.innerHTML = `
+                        <img src="${posterPath}" alt="${movie.title} Poster" class="w-full h-auto" onerror="this.src='https://placehold.co/500x750/313b4c/FFF?text=Image+Not+Found'">
+                        <div class="p-4">
+                            <h3 class="font-bold text-lg mb-1 truncate" title="${movie.title}">${movie.title}</h3>
+                            <div class="flex justify-between items-center text-sm text-gray-300 mb-2">
+                                <span>${movie.release_date ? movie.release_date.substring(0, 4) : 'N/A'}</span>
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                    ${rating}
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-400">${overview}</p>
+                        </div>
+                    `;
+
+                    resultsContainer.appendChild(movieCard);
+                });
+            }
+
+            function showLoading(isLoading) {
+                loadingSpinner.classList.toggle('hidden', !isLoading);
+            }
+
+            function showMessage(message, isError) {
+                messageArea.innerHTML = `<p class="text-2xl">${message}</p>`;
+                messageArea.classList.toggle('text-red-500', isError);
+                messageArea.classList.toggle('text-gray-500', !isError);
+                messageArea.classList.toggle('hidden', !message);
+
+                if(message) {
+                    const movieResults = document.getElementById('movie-results');
+                    if(movieResults) {
+                        movieResults.innerHTML = '';
+                    }
+                }
+            }
+
+            // Remove the initial API key check message on load
+            const initialMessage = document.querySelector('#message-area p:last-child');
+            if (initialMessage && initialMessage.textContent.includes('API key')) {
+                 messageArea.innerHTML = '<p class="text-2xl">Select a mood to see movie recommendations!</p>';
+            }
+
+        });
+    </script>
+</body>
+</html>
